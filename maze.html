@@ -25,8 +25,10 @@
     		this.set_used_flg=function(flg){
     			this.used_flg=flg;
     		},
-    		this.setFill=function(color){
-    			this.polygon.setAttribute("fill",color);
+    		this.setAttr=function(hash){
+    			for(var key in hash){
+					this.polygon.setAttribute(key,hash[key]);
+				}
     		}
     	}
     	Maze={
@@ -46,7 +48,7 @@
     			this.width=hash.width || 30;
     			this.height=hash.height || 30;
     			this.repeat_num=(this.width+this.height)*2;
-    			$("#svg_area").css("display","inline");
+    			$("#maze_area").css("display","inline");
     			this.mass_width=SVG.getWidth()/this.height;
     			this.mass_height=SVG.getHeight()/this.width;
     			this.goal_x=this.getMaxEvenNumber(this.width);
@@ -81,7 +83,7 @@
     					this.random_hash=[1,2,3,4];
     					var arr=this.make_random_way(init_x,init_y);
     					if(arr){
-	    					this.make_way_from(arr[0],arr[1]);
+    						this.make_way_from(arr[0],arr[1]);
 	    				}
     				}else{
     					
@@ -150,6 +152,7 @@
 	    			}
     			}else if(ran==2){
     				if(!this.isWall(x,y+2)){
+    					delete this.random_hash[ran];
     					return this.make_random_way(x,y);
     				}else{
     					this.makeMassWay(x,y+1);
@@ -158,6 +161,7 @@
 	    			}
     			}else if(ran==3){
     				if(!this.isWall(x-2,y)){
+    					delete this.random_hash[ran];
     					return this.make_random_way(x,y);
     				}else{
     					this.makeMassWay(x-1,y);
@@ -166,6 +170,7 @@
 	    			}
     			}else if(ran==4){
     				if(!this.isWall(x,y-2)){
+    					delete this.random_hash[ran];
     					return this.make_random_way(x,y);
     				}else{
     					this.makeMassWay(x,y-1);
@@ -194,7 +199,85 @@
     					this.mass_list[i][k].display(this.mass_width,this.mass_height);
 	    			}
     			}
-    			this.mass_list[this.goal_x][this.goal_y].setFill("red");
+    			this.mass_list[this.goal_x][this.goal_y].setAttr({fill:"red"});
+    		},
+    		Solver:{
+    			finish_flg:false,
+    			soldier_list:[],
+    			solve:function(){
+    				this.soldier_list.push(new this.Soldier());
+    				this.advance();
+    			},
+    			advance:function(){
+    				for(var i=0;i<this.soldier_list.length;i++){
+    					if(!this.finish_flg){
+	    					this.soldier_list[i].advance();
+	    				}else{
+	    					break;
+	    				}
+    				}
+    			},
+    			Soldier:function(hash){
+    				hash = hash || {};
+    				this.x=hash.x || Maze.goal_x;
+    				this.y=hash.y || Maze.goal_y;
+    				this.way_road=hash.way_road || [Maze.mass_list[Maze.goal_x][Maze.goal_y]];
+    				this.before_move=hash.before_move;
+    				this.advance=function(){
+    					var discovery_flg=false;
+    					if(Maze.isWay(this.x+1,this.y) && this.before_move!="left" && !this.isContainWayRoad(1,0)){
+    						this.create_soldier(1,0,"right");
+    						discovery_flg=true;
+    					}
+    					if(Maze.isWay(this.x,this.y+1) && this.before_move!="down" && !this.isContainWayRoad(0,1)){
+    						this.create_soldier(0,1,"up");
+    						discovery_flg=true;
+    					}
+    					if(Maze.isWay(this.x-1,this.y) && this.before_move!="right" && !this.isContainWayRoad(-1,0)){
+    						this.create_soldier(-1,0,"left");
+    						discovery_flg=true;
+    					}
+    					if(Maze.isWay(this.x,this.y-1) && this.before_move!="up" && !this.isContainWayRoad(0,-1)){
+    						this.create_soldier(0,-1,"down");
+    						discovery_flg=true;
+    					}
+    					delete this;
+    				};
+    				this.create_soldier=function(add_x,add_y,move){
+    					var tmp_way_road=this.way_road.concat();
+    					var next_x=this.x+add_x;
+    					var next_y=this.y+add_y;
+						tmp_way_road.push(Maze.mass_list[next_x][next_y]);
+						Maze.Solver.soldier_list.push(new Maze.Solver.Soldier({x:next_x,y:next_y,way_road:tmp_way_road,before_move:move}));
+						if(next_x==Maze.start_x && next_y==Maze.start_y){
+    						Maze.Solver.finish_flg=true;
+    						this.show_answer();
+						}else{
+							
+						}
+    				};
+    				this.show_answer=function(){
+    					for(var i=0;i<this.way_road.length;i++){
+    						this.way_road[i].setAttr({fill:"red","fill-opacity":0.3});
+    					}
+    				};
+    				this.isContainWayRoad=function(add_x,add_y){
+    					var next_x=this.x+add_x;
+    					var next_y=this.y+add_y;
+    					for(var i=0;i<this.way_road;i++){
+    						var x=this.way_road[i].x;
+    						var y=this.way_road[i].y;
+    						if(x==next_x && y == next_y){
+    							return true;
+    						}
+    					}
+    					return false;
+    				}
+    				this.makeText=function(){
+    					var text=SVG.makeText({text:this.way_road.length,x:(this.x+0.5)*Maze.mass_width,y:(this.y+0.5)*Maze.mass_height});
+    					SVG.append(text);
+    				}
+    			}
     		}
     	};
     	Player=function(hash){
@@ -211,6 +294,7 @@
 	    			this.reflect();
 	    			if(this.x==Maze.goal_x && this.y== Maze.goal_y){
 	    				alert("Goal!");
+	    				Maze.Solver.solve();
 	    			}
 	    		}
     		}
@@ -253,20 +337,25 @@
 				}else{
 					alert("半角数値を入力してください");
 				}
+				
+				$("#resolve_button").click(function(){
+					Maze.Solver.solve();
+				});
 			});
 		});
     </script>
 </head>
 <body>
-    <div class="row" height=30%>
+    <div class="row" height=30% id="maze_area" style="display:none;">
     	<div class="col col-md-1">
     	</div>
     	<div class="col col-md-10">
-		    <svg x=0 y=0 width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1"  id="svg_area" overflow="hidden" style="display:none;"  >
+		    <svg x=0 y=0 width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1"  id="svg_area" overflow="hidden"   >
 				
 			</svg>
 		</div>
 		<div class="col col-md-1">
+			<button type="button" class="btn btn-default" id="resolve_button" >解答</button>
     	</div>
 	</div>  
 	 <div class="row" height="30%" id="choice" style="padding-top:5%;">
